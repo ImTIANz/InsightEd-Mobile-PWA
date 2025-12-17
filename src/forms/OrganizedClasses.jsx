@@ -11,8 +11,8 @@ const OrganizedClasses = () => {
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     
-    // UI States
-    const [isLocked, setIsLocked] = useState(true);
+    // UI States: Default to FALSE (Unlocked) so new users can type immediately
+    const [isLocked, setIsLocked] = useState(false); 
     const [showEditModal, setShowEditModal] = useState(false);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
@@ -41,6 +41,10 @@ const OrganizedClasses = () => {
                         setOffering(json.offering || '');
                         
                         const db = json.data;
+                        // Check if specific class data actually exists (not just the profile)
+                        // If all values are 0/null, we assume it's a new entry (optional, but safer to rely on 'exists' flag)
+                        const hasData = db.kinder !== undefined || db.grade_1 !== undefined;
+
                         const initialData = {
                             kinder: db.kinder || 0,
                             g1: db.grade_1 || 0, g2: db.grade_2 || 0, g3: db.grade_3 || 0,
@@ -50,6 +54,12 @@ const OrganizedClasses = () => {
                         };
                         setFormData(initialData);
                         setOriginalData(initialData);
+
+                        // LOCK ONLY IF DATA WAS PREVIOUSLY SAVED (non-null values in DB)
+                        // If the API returns valid data rows, we lock it.
+                        if (hasData) {
+                            setIsLocked(true);
+                        }
                     }
                 } catch (error) {
                     console.error("Error fetching classes:", error);
@@ -99,7 +109,7 @@ const OrganizedClasses = () => {
             if (res.ok) {
                 alert('Success: Organized Classes saved!');
                 setOriginalData({ ...formData });
-                setIsLocked(true);
+                setIsLocked(true); // Lock it after saving
             } else {
                 alert('Failed to save data.');
             }
@@ -231,7 +241,9 @@ const OrganizedClasses = () => {
                     </button>
                 ) : (
                     <>
-                        <button onClick={handleCancelEdit} className="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-xl hover:bg-gray-200">Cancel</button>
+                        {/* Only show Cancel if there was original data to revert to */}
+                        {originalData && <button onClick={handleCancelEdit} className="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-xl hover:bg-gray-200">Cancel</button>}
+                        
                         <button onClick={() => setShowSaveModal(true)} disabled={isSaving} className="flex-[2] bg-[#CC0000] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-[#A30000] flex items-center justify-center gap-2">
                             {isSaving ? "Saving..." : "Save Changes"}
                         </button>

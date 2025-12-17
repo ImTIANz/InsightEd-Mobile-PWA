@@ -11,8 +11,8 @@ const TeachingPersonnel = () => {
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     
-    // UI States
-    const [isLocked, setIsLocked] = useState(true);
+    // UI States: Default to FALSE so new entries are editable
+    const [isLocked, setIsLocked] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showSaveModal, setShowSaveModal] = useState(false);
 
@@ -48,6 +48,26 @@ const TeachingPersonnel = () => {
                         };
                         setFormData(initialData);
                         setOriginalData(initialData);
+
+                        // LOCK ONLY IF DATA WAS PREVIOUSLY SAVED (non-null values in DB)
+                        // Checking if ANY teacher count is greater than 0, or if specific DB fields were not null
+                        // Simple check: If 'exists' is true, and the user has previously saved this specific form data.
+                        // However, 'exists' here just means 'School Profile Exists'.
+                        // We check if the values are non-zero to determine if it's a "filled" form.
+                        // Or better yet, assume if profile exists but these columns are null/0, it's "New". 
+                        
+                        // NOTE: If you default to 0 in SQL, checking for > 0 is a decent heuristic for "filled". 
+                        // Or if you want strict locking, you can check a "last_updated" timestamp if you added one.
+                        // For now, let's keep it simple: If profile exists, we lock it. 
+                        // BUT user requested it to be UNLOCKED for 1st time.
+                        
+                        // FIX: Check if at least one value is > 0 OR if we assume data exists. 
+                        // Actually, if it's 0, 0, 0 it might just be a small school or new entry.
+                        // Let's rely on the user intention: default UNLOCKED. Only lock if we explicitly "Set" it.
+                        // Since we don't have a separate flag, let's lock it ONLY if we find > 0 values or if user clicks save.
+                        
+                        const hasData = (db.es > 0 || db.jhs > 0 || db.shs > 0);
+                        if (hasData) setIsLocked(true);
                     }
                 } catch (error) {
                     console.error("Error fetching personnel:", error);
@@ -109,7 +129,7 @@ const TeachingPersonnel = () => {
             if (res.ok) {
                 alert('Success: Teaching Personnel saved!');
                 setOriginalData({ ...formData });
-                setIsLocked(true);
+                setIsLocked(true); // Lock after save
             } else {
                 alert('Failed to save data.');
             }
@@ -200,7 +220,9 @@ const TeachingPersonnel = () => {
                     </button>
                 ) : (
                     <>
-                        <button onClick={handleCancelEdit} className="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-xl hover:bg-gray-200">Cancel</button>
+                        {/* Only show Cancel if we have data to revert to */}
+                        {originalData && <button onClick={handleCancelEdit} className="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-xl hover:bg-gray-200">Cancel</button>}
+                        
                         <button onClick={() => setShowSaveModal(true)} disabled={isSaving} className="flex-[2] bg-[#CC0000] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-[#A30000] flex items-center justify-center gap-2">
                             {isSaving ? "Saving..." : "Save Changes"}
                         </button>

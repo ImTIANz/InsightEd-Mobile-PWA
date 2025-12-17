@@ -624,6 +624,65 @@ app.post('/api/save-teaching-personnel', async (req, res) => {
     }
 });
 
+// --- 19. GET: Get Learning Modalities (From School Profile) ---
+app.get('/api/learning-modalities/:uid', async (req, res) => {
+    const { uid } = req.params;
+    try {
+        const query = `
+            SELECT * FROM school_profiles WHERE submitted_by = $1
+        `;
+        const result = await pool.query(query, [uid]);
+
+        if (result.rows.length === 0) return res.json({ exists: false });
+
+        const row = result.rows[0];
+        res.json({ 
+            exists: true, 
+            schoolId: row.school_id, 
+            offering: row.curricular_offering,
+            data: row // We just send the whole row, frontend picks what it needs
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Fetch failed" });
+    }
+});
+
+// --- 20. POST: Save Learning Modalities (Update School Profile) ---
+app.post('/api/save-learning-modalities', async (req, res) => {
+    const data = req.body;
+    try {
+        const query = `
+            UPDATE school_profiles SET
+                shift_kinder = $2, shift_g1 = $3, shift_g2 = $4, shift_g3 = $5, shift_g4 = $6, shift_g5 = $7, shift_g6 = $8,
+                shift_g7 = $9, shift_g8 = $10, shift_g9 = $11, shift_g10 = $12, shift_g11 = $13, shift_g12 = $14,
+
+                mode_kinder = $15, mode_g1 = $16, mode_g2 = $17, mode_g3 = $18, mode_g4 = $19, mode_g5 = $20, mode_g6 = $21,
+                mode_g7 = $22, mode_g8 = $23, mode_g9 = $24, mode_g10 = $25, mode_g11 = $26, mode_g12 = $27,
+
+                adm_mdl = $28, adm_odl = $29, adm_tvi = $30, adm_blended = $31, adm_others = $32,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE school_id = $1
+        `;
+
+        await pool.query(query, [
+            data.schoolId,
+            data.shift_kinder, data.shift_g1, data.shift_g2, data.shift_g3, data.shift_g4, data.shift_g5, data.shift_g6,
+            data.shift_g7, data.shift_g8, data.shift_g9, data.shift_g10, data.shift_g11, data.shift_g12,
+            
+            data.mode_kinder, data.mode_g1, data.mode_g2, data.mode_g3, data.mode_g4, data.mode_g5, data.mode_g6,
+            data.mode_g7, data.mode_g8, data.mode_g9, data.mode_g10, data.mode_g11, data.mode_g12,
+
+            data.adm_mdl, data.adm_odl, data.adm_tvi, data.adm_blended, data.adm_others
+        ]);
+        
+        res.json({ message: "Modalities saved successfully!" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ==================================================================
 //                        SERVER STARTUP
 // ==================================================================

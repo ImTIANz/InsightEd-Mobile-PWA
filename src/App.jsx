@@ -25,17 +25,18 @@ import SchoolInformation from './forms/SchoolInformation';
 import Enrolement from './forms/Enrolment';
 import OrganizedClasses from './forms/OrganizedClasses';
 import TeachingPersonnel from './forms/TeachingPersonnel';
-import SchoolInfrastructure from './forms/SchoolInfrastructure';
+import ShiftingModalities from './forms/ShiftingModalities'; // <--- NEW IMPORT
 import TeacherSpecialization from './forms/TeacherSpecialization';
 
-// 2. Engineer Forms (Updated Names & New Files)
-import EngineerSchoolInfrastructure from './forms/EngineerSchoolInfrastructure'; // <--- Renamed
-import EngineerSchoolResources from './forms/EngineerSchoolResources';           // <--- Renamed
+// 2. Engineer Forms
+import EngineerSchoolInfrastructure from './forms/EngineerSchoolInfrastructure';
+import EngineerSchoolResources from './forms/EngineerSchoolResources';           
 import DamageAssessment from './forms/DamageAssessment';
 import ProjectMonitoring from './forms/ProjectMonitoring';
 import SiteInspection from './forms/SiteInspection';
-import MaterialInventory from './forms/MaterialInventory';import NewProjects from './modules/NewProjects';
-import DetailedProjInfo from './modules/DetailedProjInfo'; // <--- NEW IMPORT HERE
+import MaterialInventory from './forms/MaterialInventory';
+import NewProjects from './modules/NewProjects';
+import DetailedProjInfo from './modules/DetailedProjInfo'; 
 
 
 function App() {
@@ -68,9 +69,13 @@ function App() {
         <Route path="/enrolment" element={<Enrolement />} />
         <Route path="/organized-classes" element={<OrganizedClasses />} />
         <Route path="/teaching-personnel" element={<TeachingPersonnel />} />
+        
+        {/* 👇 UPDATED ROUTE 👇 */}
+        <Route path="/shifting-modality" element={<ShiftingModalities />} />
+        
         <Route path="/teacher-specialization" element={<TeacherSpecialization />} />
 
-        {/* Engineer Specific (Updated) */}
+        {/* Engineer Specific */}
         <Route path="/school-infrastructure" element={<EngineerSchoolInfrastructure />} />
         <Route path="/school-resources" element={<EngineerSchoolResources />} />
         <Route path="/damage-assessment" element={<DamageAssessment />} />

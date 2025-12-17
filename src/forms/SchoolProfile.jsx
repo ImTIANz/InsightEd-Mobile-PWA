@@ -24,6 +24,10 @@ const SchoolProfile = () => {
     const [showSaveModal, setShowSaveModal] = useState(false); 
     const [showEditModal, setShowEditModal] = useState(false); 
     
+    // Confirmation Checkboxes
+    const [ack1, setAck1] = useState(false);
+    const [ack2, setAck2] = useState(false);
+
     // Dropdown Data
     const [provinceOptions, setProvinceOptions] = useState([]);
     const [cityOptions, setCityOptions] = useState([]);
@@ -33,7 +37,7 @@ const SchoolProfile = () => {
     const [legDistrictOptions, setLegDistrictOptions] = useState([]);
     
     // Data Caches
-    const [schoolDirectory, setSchoolDirectory] = useState([]); // Stores CSV data
+    const [schoolDirectory, setSchoolDirectory] = useState([]); 
     const [regionDivMap, setRegionDivMap] = useState({}); 
     const [divDistMap, setDivDistMap] = useState({}); 
 
@@ -73,17 +77,62 @@ const SchoolProfile = () => {
         return changes;
     };
 
+    // --- HELPER: NAME VALIDATOR ---
+    const getNameSuggestion = (name) => {
+        if (!name) return null;
+        const n = name.trim();
+        
+        if (/\bES$/.test(n)) return "Suggestion: Please spell out 'ES' to 'Elementary School'";
+        if (/\bNHS$/.test(n)) return "Suggestion: Please spell out 'NHS' to 'National High School'";
+        if (/\bIS$/.test(n)) return "Suggestion: Please spell out 'IS' to 'Integrated School'";
+        if (/\bPS$/.test(n)) return "Suggestion: Please spell out 'PS' to 'Primary School'";
+        if (/\bCSH$/.test(n)) return "Suggestion: Please spell out 'CSH' to 'City Science High School'";
+        if (/\bE\/S$/.test(n)) return "Suggestion: Please spell out 'E/S' to 'Elementary School'";
+        if (/\bP\/S$/.test(n)) return "Suggestion: Please spell out 'P/S' to 'Primary School'";
+        if (/\bElem\.?\s*School$/i.test(n)) return "Suggestion: Standardize 'Elem School' to 'Elementary School'";
+        
+        return null; 
+    };
+
+    const nameWarning = getNameSuggestion(formData.schoolName);
+
+    // --- NEW: GPS LOCATION HANDLER (Works Offline) ---
+    const handleGetLocation = () => {
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser.");
+            return;
+        }
+        
+        // Show a mini loading state or toast could go here
+        const confirmGPS = confirm("This will use your device's GPS to get your current location. Ensure you are at the school site.");
+        if (!confirmGPS) return;
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setFormData(prev => ({
+                    ...prev,
+                    latitude: position.coords.latitude.toFixed(6),
+                    longitude: position.coords.longitude.toFixed(6)
+                }));
+                alert("Location updated from Device GPS!");
+            },
+            (error) => {
+                console.error("GPS Error:", error);
+                alert("Unable to retrieve location. Please check if Location Services are enabled.");
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    };
+
     // --- 1. INITIAL LOAD LOGIC ---
     useEffect(() => {
         let isMounted = true;
 
         const initialize = async () => {
             try {
-                // A. FETCH CSV TEXT MANUALLY (Fixes JSON Error)
                 const csvResponse = await fetch('/schools.csv');
                 const csvText = await csvResponse.text();
 
-                // B. PARSE CSV & BUILD MAPS
                 const parsedData = await new Promise((resolve) => {
                     Papa.parse(csvText, {
                         header: true, 
@@ -94,16 +143,13 @@ const SchoolProfile = () => {
                 });
 
                 if (isMounted) {
-                    setSchoolDirectory(parsedData); // Store for fast searching
+                    setSchoolDirectory(parsedData); 
                     
-                    // Build Lookup Maps for Dropdowns
                     const tempRegDiv = {}; 
                     const tempDivDist = {}; 
                     const tempLegs = new Set();
-
                     const clean = (str) => str ? String(str).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
                     
-                    // Identify Dynamic Headers
                     const headers = parsedData.length > 0 ? Object.keys(parsedData[0]) : [];
                     const regKey = headers.find(h => clean(h) === 'region');
                     const divKey = headers.find(h => clean(h) === 'division');
@@ -127,7 +173,6 @@ const SchoolProfile = () => {
                         if (leg) tempLegs.add(leg);
                     });
 
-                    // Convert Sets to Sorted Arrays
                     const processedRegDiv = {}; 
                     Object.keys(tempRegDiv).forEach(k => processedRegDiv[k] = Array.from(tempRegDiv[k]).sort());
                     
@@ -138,19 +183,16 @@ const SchoolProfile = () => {
                     setDivDistMap(processedDivDist);
                     setLegDistrictOptions(Array.from(tempLegs).sort());
                 
-                    // C. CHECK DATABASE FOR EXISTING USER DATA
                     onAuthStateChanged(auth, async (user) => {
                         if (!user || !isMounted) return;
 
                         try {
-                            // Use Relative Path for Vercel/Localhost compatibility
                             const response = await fetch(`/api/school-by-user/${user.uid}`);
                             const result = await response.json();
                             
                             if (result.exists) {
                                 const dbData = result.data;
                                 
-                                // Pre-fill Cascading Dropdowns based on DB Data
                                 if (locationData[dbData.region]) {
                                     setProvinceOptions(Object.keys(locationData[dbData.region]).sort());
                                     if (locationData[dbData.region][dbData.province]) {
@@ -214,7 +256,6 @@ const SchoolProfile = () => {
         const validDivisions = regionDivMap[selectedRegion] || [];
         setDivisionOptions(validDivisions);
         
-        // Reset dependent fields
         setFormData(prev => ({ 
             ...prev, 
             region: selectedRegion, 
@@ -245,7 +286,7 @@ const SchoolProfile = () => {
         setBarangayOptions(municipality && formData.province ? locationData[formData.region][formData.province][municipality].sort() : []);
     };
 
-    // --- AUTOFILL LOGIC (OPTIMIZED) ---
+    // --- AUTOFILL LOGIC ---
     const handleIdBlur = async () => {
         if (isLocked || hasSavedData) return; 
         const targetId = String(formData.schoolId).trim();
@@ -253,7 +294,6 @@ const SchoolProfile = () => {
 
         setLoading(true);
 
-        // 1. Check DB for duplicate
         try {
             const response = await fetch(`/api/check-school/${targetId}`);
             if (response.ok) {
@@ -267,7 +307,6 @@ const SchoolProfile = () => {
             }
         } catch (error) { console.warn("DB Check skipped."); }
 
-        // 2. Search Local CSV Data (No re-downloading!)
         const clean = (str) => str?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
         const headers = schoolDirectory.length > 0 ? Object.keys(schoolDirectory[0]) : [];
         const idKey = headers.find(h => clean(h) === 'schoolid');
@@ -281,24 +320,19 @@ const SchoolProfile = () => {
                     return k ? String(school[k]).trim() : '';
                 };
 
-                // Helper to match casing from options
                 const findMatch = (options, value) => options.find(opt => clean(opt) === clean(value)) || value;
 
-                // Match Region
                 const rawRegion = getVal('region');
                 const matchedRegion = findMatch(Object.keys(locationData), rawRegion);
                 
-                // Match Division
                 const validDivisions = regionDivMap[matchedRegion] || [];
                 setDivisionOptions(validDivisions);
                 const rawDiv = getVal('division');
                 const matchedDiv = findMatch(validDivisions, rawDiv);
                 
-                // Match District
                 const validDistricts = divDistMap[matchedDiv] || [];
                 setDistrictOptions(validDistricts);
                 
-                // Match Location Hierarchy
                 let provOpts = [], matchedProv = getVal('province');
                 if (locationData[matchedRegion]) {
                     provOpts = Object.keys(locationData[matchedRegion]).sort();
@@ -358,6 +392,8 @@ const SchoolProfile = () => {
     const handleSaveClick = (e) => { 
         e.preventDefault(); 
         if (!auth.currentUser) return; 
+        setAck1(false);
+        setAck2(false);
         setShowSaveModal(true); 
     };
     
@@ -367,7 +403,6 @@ const SchoolProfile = () => {
         const payload = { ...formData, submittedBy: auth.currentUser.uid };
         
         try {
-            // Using Relative Path for Production/Localhost
             const response = await fetch('/api/save-school', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
             });
@@ -384,7 +419,6 @@ const SchoolProfile = () => {
         } catch (error) { alert("Error saving data."); } finally { setIsSaving(false); }
     };
 
-    // Styling Helpers
     const inputClass = `w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#004A99] bg-white text-gray-800 font-semibold text-[14px] shadow-sm disabled:bg-gray-100 disabled:text-gray-500 transition-all`;
     const labelClass = "block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1 ml-1";
     const sectionClass = "bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6";
@@ -428,10 +462,20 @@ const SchoolProfile = () => {
                                 <input type="text" name="schoolId" value={formData.schoolId} onChange={handleChange} onBlur={handleIdBlur} placeholder="100001" maxLength="6" className={`${inputClass} text-center text-xl tracking-widest font-bold ${hasSavedData ? 'bg-gray-200 cursor-not-allowed' : ''}`} required disabled={isLocked || hasSavedData} />
                                 {hasSavedData && <p className="text-[10px] text-gray-400 mt-1 text-center">Permanently linked to this account.</p>}
                             </div>
+                            
                             <div>
                                 <label className={labelClass}>School Name</label>
                                 <input type="text" name="schoolName" value={formData.schoolName} onChange={handleChange} className={inputClass} required disabled={isLocked} />
+                                
+                                {/* WARNING MESSAGE */}
+                                {!isLocked && nameWarning && (
+                                    <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2 items-start animate-in fade-in">
+                                        <span className="text-amber-500 text-lg">⚠️</span>
+                                        <p className="text-amber-700 text-xs font-semibold leading-relaxed">{nameWarning}</p>
+                                    </div>
+                                )}
                             </div>
+                            
                             <div>
                                 <label className={labelClass}>Mother School ID</label>
                                 <input type="text" name="motherSchoolId" value={formData.motherSchoolId} onChange={handleChange} className={inputClass} disabled={isLocked} placeholder="If annex, enter mother school ID" />
@@ -508,9 +552,21 @@ const SchoolProfile = () => {
 
                     {/* SECTION 4: COORDINATES */}
                     <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 mb-6">
-                        <h2 className="text-blue-800 font-bold text-sm uppercase tracking-wide mb-4">
-                            🌐 Geo-Tagging
-                        </h2>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-blue-800 font-bold text-sm uppercase tracking-wide">
+                                🌐 Geo-Tagging
+                            </h2>
+                            {!isLocked && (
+                                <button 
+                                    type="button" 
+                                    onClick={handleGetLocation} 
+                                    className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-all"
+                                >
+                                    <span>📍</span> Get My Location
+                                </button>
+                            )}
+                        </div>
+                        
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className={labelClass}>Latitude</label>
@@ -521,6 +577,29 @@ const SchoolProfile = () => {
                                 <input type="text" name="longitude" value={formData.longitude} onChange={handleChange} className={inputClass} disabled={isLocked} placeholder="120.9842" />
                             </div>
                         </div>
+
+                        {/* MAP LINKS */}
+                        {formData.latitude && formData.longitude && (
+                            <div className="mt-4 flex gap-2 justify-end">
+                                {/* Option 1: Native App (Works Offline if area cached) */}
+                                <a 
+                                    href={`geo:${formData.latitude},${formData.longitude}?q=${formData.latitude},${formData.longitude}`} 
+                                    className="flex items-center gap-2 text-[#004A99] hover:text-white hover:bg-[#004A99] text-xs font-bold bg-white px-3 py-2 rounded-lg border border-blue-100 shadow-sm transition-all no-underline"
+                                >
+                                    <span>📱</span> Open in App
+                                </a>
+
+                                {/* Option 2: OSM (Fast / Low Graphics) */}
+                                <a 
+                                    href={`https://www.openstreetmap.org/?mlat=${formData.latitude}&mlon=${formData.longitude}#map=18/${formData.latitude}/${formData.longitude}`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-green-700 hover:text-white hover:bg-green-600 text-xs font-bold bg-white px-3 py-2 rounded-lg border border-green-100 shadow-sm transition-all no-underline"
+                                >
+                                    <span>🗺️</span> View Map (Fast)
+                                </a>
+                            </div>
+                        )}
                     </div>
 
                 </form>
@@ -549,17 +628,47 @@ const SchoolProfile = () => {
             {showEditModal && <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm"><div className="bg-white p-6 rounded-2xl w-full max-w-sm"><h3 className="font-bold text-lg">Edit Profile?</h3><div className="mt-4 flex gap-2"><button onClick={()=>setShowEditModal(false)} className="flex-1 py-3 border rounded-xl">Cancel</button><button onClick={handleConfirmEdit} className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold">Edit</button></div></div></div>}
             
             {showSaveModal && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm">
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm animate-in fade-in">
                     <div className="bg-white p-6 rounded-2xl w-full max-w-sm">
                         <h3 className="font-bold text-lg">Review Changes</h3>
+                        
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 my-4 text-xs max-h-32 overflow-y-auto">
                             {getChanges().length > 0 ? getChanges().map((c, i) => (
                                 <div key={i} className="flex justify-between border-b pb-1 mb-1 last:border-0"><span className="font-bold text-gray-500">{c.field}</span><span className="text-gray-800">{c.newVal}</span></div>
                             )) : <p className="text-gray-400 italic">No changes detected.</p>}
                         </div>
+
+                        {/* REQUIRED MODULES FOR FIRST SAVE */}
+                        {!hasSavedData && (
+                            <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
+                                <label className="flex items-start gap-3 cursor-pointer group select-none">
+                                    <input type="checkbox" checked={ack1} onChange={(e) => setAck1(e.target.checked)} className="mt-0.5 w-4 h-4 text-blue-600 rounded focus:ring-blue-600 cursor-pointer" />
+                                    <span className="text-[11px] font-medium text-gray-700 group-hover:text-gray-900 leading-tight">
+                                        I confirm that I am the <b>SCHOOL HEAD</b> and that all information I provide is TRUE and ACCURATE.
+                                    </span>
+                                </label>
+                                <label className="flex items-start gap-3 cursor-pointer group select-none">
+                                    <input type="checkbox" checked={ack2} onChange={(e) => setAck2(e.target.checked)} className="mt-0.5 w-4 h-4 text-blue-600 rounded focus:ring-blue-600 cursor-pointer" />
+                                    <span className="text-[11px] font-medium text-gray-700 group-hover:text-gray-900 leading-tight">
+                                        I acknowledge that I have read and understood the information above.
+                                    </span>
+                                </label>
+                            </div>
+                        )}
+
                         <div className="flex gap-2">
-                            <button onClick={()=>setShowSaveModal(false)} className="flex-1 py-3 border rounded-xl">Cancel</button>
-                            <button onClick={confirmSave} className="flex-1 py-3 bg-[#CC0000] text-white rounded-xl font-bold">Confirm</button>
+                            <button onClick={()=>setShowSaveModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-gray-600">Cancel</button>
+                            <button 
+                                onClick={confirmSave} 
+                                disabled={!hasSavedData && (!ack1 || !ack2)}
+                                className={`flex-1 py-3 text-white rounded-xl font-bold transition-all shadow-md
+                                    ${(!hasSavedData && (!ack1 || !ack2)) 
+                                        ? 'bg-gray-300 cursor-not-allowed shadow-none' 
+                                        : 'bg-[#CC0000] hover:bg-[#A30000]'}
+                                `}
+                            >
+                                Confirm
+                            </button>
                         </div>
                     </div>
                 </div>

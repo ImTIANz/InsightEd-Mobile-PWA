@@ -13,7 +13,7 @@ const SchoolForms = () => {
     const [schoolProfile, setSchoolProfile] = useState(null);
     const [headProfile, setHeadProfile] = useState(null);
 
-    // --- 1. DATA CONTENT (All 8 Forms) ---
+    // --- 1. DATA CONTENT ---
     const formsData = [
         { 
             id: 'profile', 
@@ -52,10 +52,10 @@ const SchoolForms = () => {
         },
         { 
             id: 'infra', 
-            name: "School Infrastructure", 
-            emoji: "🏗️",
-            description: "Status of classrooms and buildings.",
-            route: "/school-infrastructure", 
+            name: "Shifting & Modality", 
+            emoji: "🔄",
+            description: "Shifting schedules and learning delivery modes.",
+            route: "/shifting-modality", 
         },
         { 
             id: 'resources', 
@@ -78,12 +78,12 @@ const SchoolForms = () => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 try {
-                    // Check School Profile & Enrolment
+                    // Check School Profile (Contains Enrolment, Classes, Teachers, Modalities)
                     const profileRes = await fetch(`/api/school-by-user/${user.uid}`);
                     const profileJson = await profileRes.json();
                     if (profileJson.exists) setSchoolProfile(profileJson.data);
 
-                    // Check School Head Info
+                    // Check School Head Info (Separate Table)
                     const headRes = await fetch(`/api/school-head/${user.uid}`);
                     const headJson = await headRes.json();
                     if (headJson.exists) setHeadProfile(headJson.data);
@@ -95,21 +95,55 @@ const SchoolForms = () => {
         return () => unsubscribe();
     }, []);
 
-    // --- HELPERS ---
+    // --- 3. STATUS LOGIC (Updated) ---
     const getStatus = (id) => {
-        // Real Checks for implemented forms
-        if (id === 'profile') return schoolProfile ? 'completed' : 'pending';
-        if (id === 'head') return headProfile ? 'completed' : 'pending';
-        if (id === 'enrolment') return (schoolProfile && schoolProfile.total_enrollment > 0) ? 'completed' : 'pending';
-        
-        // Placeholder Checks for future forms (Default to Pending/Open)
-        return 'pending'; 
+        if (!schoolProfile && id !== 'profile') return 'locked'; // Lock everything if profile missing
+
+        switch (id) {
+            case 'profile':
+                return schoolProfile ? 'completed' : 'pending';
+            
+            case 'head':
+                return headProfile ? 'completed' : 'pending';
+            
+            case 'enrolment':
+                // Check if Total Enrollment is > 0
+                return (schoolProfile?.total_enrollment > 0) ? 'completed' : 'pending';
+            
+            case 'classes':
+                // Check if any class count > 0 (Summing common levels)
+                if (!schoolProfile) return 'pending';
+                const totalClasses = (schoolProfile.classes_kinder || 0) + 
+                                     (schoolProfile.classes_grade_1 || 0) + 
+                                     (schoolProfile.classes_grade_6 || 0) + 
+                                     (schoolProfile.classes_grade_10 || 0) + 
+                                     (schoolProfile.classes_grade_12 || 0);
+                return totalClasses > 0 ? 'completed' : 'pending';
+
+            case 'teachers':
+                // Check if any teacher count > 0
+                if (!schoolProfile) return 'pending';
+                const totalTeachers = (schoolProfile.teachers_es || 0) + 
+                                      (schoolProfile.teachers_jhs || 0) + 
+                                      (schoolProfile.teachers_shs || 0);
+                return totalTeachers > 0 ? 'completed' : 'pending';
+
+            case 'infra': // Shifting & Modality
+                // Check if at least one shift strategy is set OR ADMs are checked
+                if (!schoolProfile) return 'pending';
+                const hasShift = schoolProfile.shift_kinder || schoolProfile.shift_g1 || schoolProfile.shift_g7 || schoolProfile.shift_g11;
+                const hasAdm = schoolProfile.adm_mdl || schoolProfile.adm_odl || schoolProfile.adm_others;
+                return (hasShift || hasAdm) ? 'completed' : 'pending';
+
+            default:
+                return 'pending'; 
+        }
     };
 
     const StatusBadge = ({ status }) => {
-        if (status === 'completed') return <span className="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider">Completed</span>;
-        if (status === 'pending') return <span className="bg-orange-100 text-orange-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider animate-pulse">Pending</span>;
-        return <span className="bg-gray-100 text-gray-500 text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider">Locked</span>;
+        if (status === 'completed') return <span className="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider border border-green-200">Completed</span>;
+        if (status === 'pending') return <span className="bg-orange-50 text-orange-600 text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider border border-orange-100 flex items-center gap-1"><span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span> Pending</span>;
+        return <span className="bg-gray-100 text-gray-400 text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider border border-gray-200">Locked</span>;
     };
 
     // --- COMPONENT: FORM CARD ---
@@ -129,11 +163,11 @@ const SchoolForms = () => {
             >
                 {/* Status Color Bar */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 
-                    ${status === 'completed' ? 'bg-green-500' : status === 'pending' ? 'bg-orange-400' : 'bg-gray-300'}`} 
+                    ${status === 'completed' ? 'bg-[#004A99]' : status === 'pending' ? 'bg-orange-400' : 'bg-gray-300'}`} 
                 />
 
                 <div className="flex items-center gap-4 ml-3">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-transform duration-300 group-hover:scale-110
                         ${isLocked ? 'bg-gray-200 grayscale' : 'bg-blue-50 text-blue-600'}
                     `}>
                         {item.emoji}
@@ -146,7 +180,7 @@ const SchoolForms = () => {
 
                 <div className="flex flex-col items-end gap-2">
                     <StatusBadge status={status} />
-                    {!isLocked && <span className="text-gray-300 group-hover:text-blue-500 transition text-xl">&rarr;</span>}
+                    {!isLocked && <span className="text-gray-300 group-hover:text-[#004A99] transition text-xl">&rarr;</span>}
                 </div>
             </div>
         );
