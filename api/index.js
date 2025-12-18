@@ -683,6 +683,80 @@ app.post('/api/save-learning-modalities', async (req, res) => {
     }
 });
 
+// --- 21. GET: School Resources Data ---
+app.get('/api/school-resources/:uid', async (req, res) => {
+    const { uid } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM school_profiles WHERE submitted_by = $1', [uid]);
+        if (result.rows.length === 0) return res.json({ exists: false });
+        res.json({ exists: true, data: result.rows[0] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 22. POST: Save School Resources ---
+app.post('/api/save-school-resources', async (req, res) => {
+    const data = req.body;
+    try {
+        const query = `
+            UPDATE school_profiles SET
+                res_armchairs_good=$2, res_armchairs_repair=$3, res_teacher_tables_good=$4, res_teacher_tables_repair=$5,
+                res_blackboards_good=$6, res_blackboards_defective=$7,
+                res_desktops_instructional=$8, res_desktops_admin=$9, res_laptops_teachers=$10, res_tablets_learners=$11,
+                res_printers_working=$12, res_projectors_working=$13, res_internet_type=$14,
+                res_toilets_male=$15, res_toilets_female=$16, res_toilets_pwd=$17, res_faucets=$18, res_water_source=$19,
+                res_sci_labs=$20, res_com_labs=$21, res_tvl_workshops=$22,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE school_id=$1
+        `;
+        await pool.query(query, [
+            data.schoolId,
+            data.res_armchairs_good, data.res_armchairs_repair, data.res_teacher_tables_good, data.res_teacher_tables_repair,
+            data.res_blackboards_good, data.res_blackboards_defective,
+            data.res_desktops_instructional, data.res_desktops_admin, data.res_laptops_teachers, data.res_tablets_learners,
+            data.res_printers_working, data.res_projectors_working, data.res_internet_type,
+            data.res_toilets_male, data.res_toilets_female, data.res_toilets_pwd, data.res_faucets, data.res_water_source,
+            data.res_sci_labs, data.res_com_labs, data.res_tvl_workshops
+        ]);
+        res.json({ message: "Resources saved!" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 23. GET: Teacher Specialization Data ---
+app.get('/api/teacher-specialization/:uid', async (req, res) => {
+    const { uid } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM school_profiles WHERE submitted_by = $1', [uid]);
+        if (result.rows.length === 0) return res.json({ exists: false });
+        res.json({ exists: true, data: result.rows[0] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 24. POST: Save Teacher Specialization ---
+app.post('/api/save-teacher-specialization', async (req, res) => {
+    const data = req.body;
+    try {
+        const query = `
+            UPDATE school_profiles SET
+                spec_english_major=$2, spec_english_teaching=$3, spec_filipino_major=$4, spec_filipino_teaching=$5,
+                spec_math_major=$6, spec_math_teaching=$7, spec_science_major=$8, spec_science_teaching=$9,
+                spec_ap_major=$10, spec_ap_teaching=$11, spec_mapeh_major=$12, spec_mapeh_teaching=$13,
+                spec_esp_major=$14, spec_esp_teaching=$15, spec_tle_major=$16, spec_tle_teaching=$17,
+                spec_guidance=$18, spec_librarian=$19, spec_ict_coord=$20, spec_drrm_coord=$21,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE school_id=$1
+        `;
+        await pool.query(query, [
+            data.schoolId,
+            data.spec_english_major, data.spec_english_teaching, data.spec_filipino_major, data.spec_filipino_teaching,
+            data.spec_math_major, data.spec_math_teaching, data.spec_science_major, data.spec_science_teaching,
+            data.spec_ap_major, data.spec_ap_teaching, data.spec_mapeh_major, data.spec_mapeh_teaching,
+            data.spec_esp_major, data.spec_esp_teaching, data.spec_tle_major, data.spec_tle_teaching,
+            data.spec_guidance, data.spec_librarian, data.spec_ict_coord, data.spec_drrm_coord
+        ]);
+        res.json({ message: "Specialization saved!" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ==================================================================
 //                        SERVER STARTUP
 // ==================================================================

@@ -7,16 +7,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'schools.csv'],
-
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,csv}'],
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/],
-        
-        // 👇 THIS IS THE NEW FIX: Increase limit to 10 MB (in bytes)
-        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, 
-      },
+      // 👇 CHANGE 1: Switch strategy to injectManifest
+      strategies: 'injectManifest',
+      // 👇 CHANGE 2: Point to your new source file
+      srcDir: 'src',
+      filename: 'sw.js',
+      
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'schools.csv', 'InsightEd1.png'], // Added InsightEd1.png
 
       manifest: {
         name: 'InsightEd',
@@ -38,6 +35,11 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
+      },
+      // Workbox options specific to injectManifest mode
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,csv}'],
       }
     })
   ],

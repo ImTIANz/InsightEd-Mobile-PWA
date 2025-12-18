@@ -87,6 +87,7 @@ const SchoolProfile = () => {
         if (/\bIS$/.test(n)) return "Suggestion: Please spell out 'IS' to 'Integrated School'";
         if (/\bPS$/.test(n)) return "Suggestion: Please spell out 'PS' to 'Primary School'";
         if (/\bCSH$/.test(n)) return "Suggestion: Please spell out 'CSH' to 'City Science High School'";
+        if (/\bCS$/.test(n)) return "Suggestion: Please spell out 'CS' to 'Central School'";
         if (/\bE\/S$/.test(n)) return "Suggestion: Please spell out 'E/S' to 'Elementary School'";
         if (/\bP\/S$/.test(n)) return "Suggestion: Please spell out 'P/S' to 'Primary School'";
         if (/\bElem\.?\s*School$/i.test(n)) return "Suggestion: Standardize 'Elem School' to 'Elementary School'";

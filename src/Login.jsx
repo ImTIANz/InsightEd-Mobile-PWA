@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import logo from './assets/InsightEd1.png';
 import { auth, googleProvider, db } from './firebase';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, setPersistence, browserLocalPersistence} from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate, Link } from 'react-router-dom';
 import './Login.css';
@@ -29,10 +29,18 @@ const Login = () => {
         e.preventDefault();
         setLoading(true);
         try {
+            // 👇 1. FORCE PERSISTENT SESSION (Keep user logged in)
+            await setPersistence(auth, browserLocalPersistence);
+
+            // 2. PERFORM LOGIN
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            
+            // 3. CHECK ROLE (Your existing custom logic)
             await checkUserRole(userCredential.user.uid);
+            
         } catch (error) {
-            alert(error.message);
+            console.error(error);
+            alert("Login Failed: " + error.message);
             setLoading(false);
         }
     };
