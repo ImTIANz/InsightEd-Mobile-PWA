@@ -1,16 +1,17 @@
 // src/Login.jsx
-import React, { useState } from 'react';
-import logo from './assets/InsightEd1.png'; //
-import { auth, googleProvider, db } from './firebase'; //
+import React, { useState, useEffect } from 'react'; // 👈 Added useEffect
+import logo from './assets/InsightEd1.png';
+import { auth, googleProvider, db } from './firebase';
 import { 
     signInWithEmailAndPassword, 
     signInWithPopup, 
     setPersistence, 
-    browserLocalPersistence 
+    browserLocalPersistence,
+    onAuthStateChanged // 👈 Import this listener
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate, Link } from 'react-router-dom';
-import './Login.css'; //
+import './Login.css';
 
 // Helper function to map roles to dashboard URLs
 const getDashboardPath = (role) => {
@@ -26,23 +27,34 @@ const getDashboardPath = (role) => {
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true); // 👈 Start as TRUE to block UI while checking
     const navigate = useNavigate();
 
-    // --- 1. HANDLE EMAIL LOGIN ---
+    // --- 1. NEW: AUTO-LOGIN LISTENER ---
+    // This runs immediately when the app opens.
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // User is found in storage! Redirect them automatically.
+                console.log("Found persistent user:", user.uid);
+                await checkUserRole(user.uid);
+            } else {
+                // No user found. Show the login form.
+                setLoading(false);
+            }
+        });
+
+        return () => unsubscribe(); // Cleanup listener on close
+    }, []);
+
+    // --- 2. HANDLE EMAIL LOGIN ---
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
-            // Force the browser to remember the user
             await setPersistence(auth, browserLocalPersistence);
-
-            // Perform Login
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            
-            // Check Role & Redirect
-            await checkUserRole(userCredential.user.uid);
-            
+            // No need to call checkUserRole here; the Listener above will catch it!
         } catch (error) {
             console.error(error);
             alert("Login Failed: " + error.message);
@@ -50,15 +62,13 @@ const Login = () => {
         }
     };
 
-    // --- 2. HANDLE GOOGLE LOGIN ---
+    // --- 3. HANDLE GOOGLE LOGIN ---
     const handleGoogleLogin = async () => {
         setLoading(true);
         try {
-            // Force persistence for Google too
             await setPersistence(auth, browserLocalPersistence);
-            
-            const result = await signInWithPopup(auth, googleProvider);
-            await checkUserRole(result.user.uid);
+            await signInWithPopup(auth, googleProvider);
+            // The Listener will handle the redirect
         } catch (error) {
             console.error(error);
             alert("Google Login Failed: " + error.message);
@@ -66,7 +76,7 @@ const Login = () => {
         }
     };
 
-    // --- 3. CHECK ROLE & REDIRECT ---
+    // --- 4. CHECK ROLE & REDIRECT ---
     const checkUserRole = async (uid) => {
         try {
             const docRef = doc(db, "users", uid);
@@ -77,19 +87,27 @@ const Login = () => {
                 const path = getDashboardPath(userData.role);
                 navigate(path);
             } else {
-                // User logged in but has no profile in Firestore
-                alert("Account not found in our database. Redirecting to registration...");
+                alert("Account not found. Redirecting to registration...");
                 navigate('/register'); 
+                setLoading(false);
             }
         } catch (err) {
             console.error("Role Check Error:", err);
-            alert("System error checking user role.");
-        } finally {
+            // Only stop loading if it's a real error, so user can try again
             setLoading(false);
         }
     };
 
-    // --- 4. RENDER UI ---
+    // --- 5. RENDER UI ---
+    // If we are checking for a saved user, show a simple loading text/spinner
+    if (loading) {
+        return (
+            <div className="login-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <div style={{ color: 'white', fontWeight: 'bold' }}>Restoring Session...</div>
+            </div>
+        );
+    }
+
     return (
         <div className="login-container">
             <div className="login-card" style={{ zIndex: 10 }}>
@@ -121,7 +139,7 @@ const Login = () => {
                     </div>
                     
                     <button type="submit" className="btn btn-primary" disabled={loading}>
-                        {loading ? 'Logging in...' : 'Sign In'}
+                        Sign In
                     </button>
                 </form>
                 
@@ -144,7 +162,6 @@ const Login = () => {
                 </div>
             </div>
 
-            {/* --- WAVES CONTAINER --- */}
             <div className="waves-container">
                 <svg className="waves" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink"
                 viewBox="0 24 150 28" preserveAspectRatio="none" shapeRendering="auto">
