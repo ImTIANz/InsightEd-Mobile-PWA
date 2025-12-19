@@ -1,7 +1,7 @@
 // src/Register.jsx
 
 import React, { useState } from 'react';
-import logo from './assets/InsightEd1.png'; // Verify this path
+import logo from './assets/InsightEd1.png'; 
 import { auth, db, googleProvider } from './firebase';
 import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore'; 
@@ -25,14 +25,13 @@ const Register = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     
-    
     // Form Data State
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
         email: '',
         password: '',
-        role: 'Engineer',
+        role: 'Engineer', // Default
         region: '',
         province: '',
         city: '',
@@ -48,16 +47,12 @@ const Register = () => {
 
     const handleRegionChange = (e) => {
         const region = e.target.value;
-        // Reset all child fields when region changes
         setFormData({ 
             ...formData, 
             region, 
-            province: '', 
-            city: '', 
-            barangay: '' 
+            province: '', city: '', barangay: '' 
         });
 
-        // Load Provinces: Get keys from the Region object
         if (region && locationData[region]) {
             setProvinceOptions(Object.keys(locationData[region]).sort());
         } else {
@@ -69,15 +64,12 @@ const Register = () => {
 
     const handleProvinceChange = (e) => {
         const province = e.target.value;
-        // Reset city and barangay when province changes
         setFormData({ 
             ...formData, 
             province, 
-            city: '', 
-            barangay: '' 
+            city: '', barangay: '' 
         });
 
-        // Load Cities: Get keys from the Province object
         if (province && formData.region) {
             setCityOptions(Object.keys(locationData[formData.region][province]).sort());
         } else {
@@ -88,14 +80,12 @@ const Register = () => {
 
     const handleCityChange = (e) => {
         const city = e.target.value;
-        // Reset barangay when city changes
         setFormData({ 
             ...formData, 
             city, 
             barangay: '' 
         });
 
-        // Load Barangays: This is an Array, not an object keys
         if (city && formData.province && formData.region) {
             const brgys = locationData[formData.region][formData.province][city];
             setBarangayOptions(brgys.sort());
@@ -146,7 +136,6 @@ const Register = () => {
             role: formData.role,
             firstName: isGoogle ? firstName : formData.firstName,
             lastName: isGoogle ? lastNameParts.join(" ") : formData.lastName,
-            // Saving exact text values from dropdowns
             region: formData.region,
             province: formData.province,
             city: formData.city,
@@ -155,8 +144,16 @@ const Register = () => {
             createdAt: new Date()
         }, { merge: true });
         
-        const path = getDashboardPath(formData.role);
-        navigate(path);
+        // --- 🚀 NEW REDIRECT LOGIC ---
+        if (formData.role === 'School Head') {
+            // Force School Heads to create a School Profile immediately
+            console.log("New School Head Registered. Redirecting to Profile Setup...");
+            navigate('/school-profile', { state: { isFirstTime: true } });
+        } else {
+            // Other roles go to their dashboards normally
+            const path = getDashboardPath(formData.role);
+            navigate(path);
+        }
     };
 
     return (
@@ -182,7 +179,6 @@ const Register = () => {
                         {/* REGION */}
                         <select name="region" onChange={handleRegionChange} value={formData.region} className="custom-select" required>
                             <option value="">Select Region</option>
-                            {/* Sort regions alphabetically */}
                             {Object.keys(locationData).sort().map((reg) => (
                                 <option key={reg} value={reg}>{reg}</option>
                             ))}

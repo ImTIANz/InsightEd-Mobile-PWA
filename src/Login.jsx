@@ -1,13 +1,13 @@
 // src/Login.jsx
-import React, { useState, useEffect } from 'react'; // 👈 Added useEffect
+import React, { useState, useEffect } from 'react';
 import logo from './assets/InsightEd1.png';
-import { auth, googleProvider, db } from './firebase';
+import { auth, googleProvider, db } from './firebase'; // Ensure this points to your firebase.js
 import { 
     signInWithEmailAndPassword, 
     signInWithPopup, 
     setPersistence, 
     browserLocalPersistence,
-    onAuthStateChanged // 👈 Import this listener
+    onAuthStateChanged
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate, Link } from 'react-router-dom';
@@ -27,24 +27,21 @@ const getDashboardPath = (role) => {
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(true); // 👈 Start as TRUE to block UI while checking
+    const [loading, setLoading] = useState(true); 
     const navigate = useNavigate();
 
-    // --- 1. NEW: AUTO-LOGIN LISTENER ---
-    // This runs immediately when the app opens.
+    // --- 1. AUTO-LOGIN LISTENER ---
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // User is found in storage! Redirect them automatically.
                 console.log("Found persistent user:", user.uid);
                 await checkUserRole(user.uid);
             } else {
-                // No user found. Show the login form.
                 setLoading(false);
             }
         });
 
-        return () => unsubscribe(); // Cleanup listener on close
+        return () => unsubscribe(); 
     }, []);
 
     // --- 2. HANDLE EMAIL LOGIN ---
@@ -53,8 +50,8 @@ const Login = () => {
         setLoading(true);
         try {
             await setPersistence(auth, browserLocalPersistence);
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            // No need to call checkUserRole here; the Listener above will catch it!
+            await signInWithEmailAndPassword(auth, email, password);
+            // The Listener above will catch the change and call checkUserRole
         } catch (error) {
             console.error(error);
             alert("Login Failed: " + error.message);
@@ -68,7 +65,7 @@ const Login = () => {
         try {
             await setPersistence(auth, browserLocalPersistence);
             await signInWithPopup(auth, googleProvider);
-            // The Listener will handle the redirect
+            // The Listener above will catch the change
         } catch (error) {
             console.error(error);
             alert("Google Login Failed: " + error.message);
@@ -76,16 +73,49 @@ const Login = () => {
         }
     };
 
-    // --- 4. CHECK ROLE & REDIRECT ---
+    // --- 4. CHECK ROLE & GATEKEEPER LOGIC ---
     const checkUserRole = async (uid) => {
         try {
+            // A. Get Role from Firestore
             const docRef = doc(db, "users", uid);
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
                 const userData = docSnap.data();
-                const path = getDashboardPath(userData.role);
-                navigate(path);
+                const role = userData.role || 'School Head'; // Default to School Head if missing
+
+                // --- B. THE GATEKEEPER (School Heads Only) ---
+                if (role === 'School Head') {
+                    try {
+                        // Check if this user has a School Profile linked
+                        const response = await fetch(`/api/school-by-user/${uid}`);
+                        const result = await response.json();
+
+                        if (result.exists) {
+                            // ✅ SUCCESS: Profile Exists
+                            // Save ID to "Sticky Note" (Local Storage) for offline use
+                            localStorage.setItem('schoolId', result.data.school_id);
+                            
+                            // Let them in
+                            navigate('/schoolhead-dashboard');
+                        } else {
+                            // ⛔ BLOCKED: No Profile Found
+                            // Force redirect to School Profile creation
+                            console.log("No profile found. Redirecting to setup...");
+                            navigate('/school-profile', { state: { isFirstTime: true } });
+                        }
+                    } catch (fetchError) {
+                        console.error("Error checking school profile (likely offline):", fetchError);
+                        // Fallback: If we can't check (offline), let them in 
+                        // (They might have the ID saved from a previous session)
+                        navigate('/schoolhead-dashboard');
+                    }
+                } else {
+                    // C. Other Roles (Engineer, Admin, etc.) - Just go to dashboard
+                    const path = getDashboardPath(role);
+                    navigate(path);
+                }
+
             } else {
                 alert("Account not found. Redirecting to registration...");
                 navigate('/register'); 
@@ -93,13 +123,11 @@ const Login = () => {
             }
         } catch (err) {
             console.error("Role Check Error:", err);
-            // Only stop loading if it's a real error, so user can try again
             setLoading(false);
         }
     };
 
     // --- 5. RENDER UI ---
-    // If we are checking for a saved user, show a simple loading text/spinner
     if (loading) {
         return (
             <div className="login-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
